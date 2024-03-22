@@ -116,6 +116,8 @@ fn handle_connection(stream: &mut TcpStream, dir: Arc<Option<String>>) {
             let headers : Vec<(&str, &str)> = headers.filter_map(split_header).collect();
 
             let body = lines.fold(String::new(), |a, b| a + b + "\n"); 
+            // NOTE: Remove last newline that is inserted by the fold.
+            let body = body.truncate(body.len() - 1);
 
             match path {
                 "/" => {
