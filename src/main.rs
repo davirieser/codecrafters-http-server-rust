@@ -5,9 +5,32 @@ fn split_header(header: &str) -> Option<(&str, &str)> {
     let mut iter = header.splitn(2, ':');
 
     let key = iter.next()?; 
-    let value = iter.next()?;
+    let value = iter.next()?.trim_start();
 
     Some((key, value))
+}
+
+fn read_to_string<R: Read>(stream: &mut R) -> Option<String> {
+    const BUFFER_SIZE : usize = 1024;
+
+    let mut buf = [0 as u8; 1024];
+    let mut vec = Vec::new();
+
+    loop {
+        match stream.read(&mut buf) {
+            Ok(n) => {
+                vec.extend_from_slice(&buf);
+                if n < BUFFER_SIZE {
+                    break;
+                }
+            }
+            Err(e) => {
+                return None;
+            }
+        }
+    }
+
+    String::from_utf8(vec).ok()
 }
 
 fn main() {
@@ -16,9 +39,8 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(mut _stream) => {
-                let mut buf = String::new();
-                match _stream.read_to_string(&mut buf) {
-                    Ok(_n) => {
+                match read_to_string(&mut _stream) {
+                    Some(buf) => {
                         let mut lines = buf.lines();
                         let (method, path, version) = match lines.next() {
                             Some(line) => {
@@ -36,7 +58,7 @@ fn main() {
                             let _ = _stream.write(&mut "HTTP/1.1 404 Not Found\r\n\r\n".as_bytes());
                         }
                     },
-                    Err(e) => panic!("Error reading Data: {}", e),
+                    None => panic!("Error reading Data"),
                 }
             }
             Err(e) => {
