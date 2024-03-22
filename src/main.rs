@@ -52,10 +52,23 @@ fn main() {
 
                         let headers : Vec<(&str, &str)> = lines.filter_map(split_header).collect();
 
-                        if path == "/" {
-                            let _ = _stream.write(&mut "HTTP/1.1 200 OK\r\n\r\n".as_bytes());
-                        } else {
-                            let _ = _stream.write(&mut "HTTP/1.1 404 Not Found\r\n\r\n".as_bytes());
+                        match path {
+                            "/" => {
+                                let _ = write!(_stream, "HTTP/1.1 200 Not Found\r\n\r\n");
+                            },
+                            _ if path.starts_with("/echo/") => {
+                                let message = path.strip_prefix("/echo/").unwrap();
+                                let len = message.len();
+
+                                let _ = write!(_stream, "HTTP/1.1 200 OK\r\n");
+                                let _ = write!(_stream, "Content-Type: text/plain\r\n");
+                                let _ = write!(_stream, "Content-Length: {len}\r\n");
+
+                                let _ = write!(_stream, "\r\n{message}");
+                            }
+                            _ => {
+                                let _ = write!(_stream, "HTTP/1.1 404 Not Found\r\n\r\n");
+                            }
                         }
                     },
                     None => panic!("Error reading Data"),
