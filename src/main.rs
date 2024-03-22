@@ -45,7 +45,7 @@ fn read_to_string<R: Read>(stream: &mut R) -> Option<String> {
     loop {
         match stream.read(&mut buf) {
             Ok(n) => {
-                vec.extend_from_slice(&buf);
+                vec.extend_from_slice(&buf[..n]);
                 if n < BUFFER_SIZE {
                     break;
                 }
