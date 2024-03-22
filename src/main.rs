@@ -1,5 +1,6 @@
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::io::{Write, Read};
+use std::thread;
 
 fn split_header(header: &str) -> Option<(&str, &str)> {
     let mut iter = header.splitn(2, ':');
@@ -33,66 +34,76 @@ fn read_to_string<R: Read>(stream: &mut R) -> Option<String> {
     String::from_utf8(vec).ok()
 }
 
+fn handle_connection(stream: &mut TcpStream) {
+    match read_to_string(stream) {
+        Some(buf) => {
+            let mut lines = buf.lines();
+            let (method, path, version) = match lines.next() {
+                Some(line) => {
+                    let parts : Vec<&str> = line.splitn(3, ' ').collect();
+                    (parts[0], parts[1], parts[2])
+                },
+                None => panic!("Empty Request!")
+            };
+
+            let headers : Vec<(&str, &str)> = lines.filter_map(split_header).collect();
+
+            match path {
+                "/" => {
+                    let _ = write!(stream, "HTTP/1.1 200 OK\r\n\r\n");
+                },
+                "/user-agent" => {
+                    match headers.iter().find(|(key, _)| *key == "User-Agent") {
+                        Some((_, user_agent)) => {
+                            let len = user_agent.len();
+
+                            let _ = write!(stream, "HTTP/1.1 200 OK\r\n");
+                            let _ = write!(stream, "Content-Type: text/plain\r\n");
+                            let _ = write!(stream, "Content-Length: {len}\r\n");
+
+                            let _ = write!(stream, "\r\n{user_agent}");
+                        }
+                        None => {
+                            let _ = write!(stream, "HTTP/1.1 404 Not Found\r\n\r\n");
+                        }
+                    }
+                }
+                _ if path.starts_with("/echo/") => {
+                    let message = path.strip_prefix("/echo/").unwrap();
+                    let len = message.len();
+
+                    let _ = write!(stream, "HTTP/1.1 200 OK\r\n");
+                    let _ = write!(stream, "Content-Type: text/plain\r\n");
+                    let _ = write!(stream, "Content-Length: {len}\r\n");
+
+                    let _ = write!(stream, "\r\n{message}");
+                }
+                _ => {
+                    let _ = write!(stream, "HTTP/1.1 404 Not Found\r\n\r\n");
+                }
+            }
+        },
+        None => panic!("Error reading Data"),
+    }
+}
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
     
+    let mut handles = vec![];
+
     for stream in listener.incoming() {
         match stream {
-            Ok(mut _stream) => {
-                match read_to_string(&mut _stream) {
-                    Some(buf) => {
-                        let mut lines = buf.lines();
-                        let (method, path, version) = match lines.next() {
-                            Some(line) => {
-                                let parts : Vec<&str> = line.splitn(3, ' ').collect();
-                                (parts[0], parts[1], parts[2])
-                            },
-                            None => panic!("Empty Request!")
-                        };
-
-                        let headers : Vec<(&str, &str)> = lines.filter_map(split_header).collect();
-
-                        match path {
-                            "/" => {
-                                let _ = write!(_stream, "HTTP/1.1 200 OK\r\n\r\n");
-                            },
-                            "/user-agent" => {
-                                match headers.iter().find(|(key, _)| *key == "User-Agent") {
-                                    Some((_, user_agent)) => {
-                                        let len = user_agent.len();
-
-                                        let _ = write!(_stream, "HTTP/1.1 200 OK\r\n");
-                                        let _ = write!(_stream, "Content-Type: text/plain\r\n");
-                                        let _ = write!(_stream, "Content-Length: {len}\r\n");
-
-                                        let _ = write!(_stream, "\r\n{user_agent}");
-                                    }
-                                    None => {
-                                        let _ = write!(_stream, "HTTP/1.1 404 Not Found\r\n\r\n");
-                                    }
-                                }
-                            }
-                            _ if path.starts_with("/echo/") => {
-                                let message = path.strip_prefix("/echo/").unwrap();
-                                let len = message.len();
-
-                                let _ = write!(_stream, "HTTP/1.1 200 OK\r\n");
-                                let _ = write!(_stream, "Content-Type: text/plain\r\n");
-                                let _ = write!(_stream, "Content-Length: {len}\r\n");
-
-                                let _ = write!(_stream, "\r\n{message}");
-                            }
-                            _ => {
-                                let _ = write!(_stream, "HTTP/1.1 404 Not Found\r\n\r\n");
-                            }
-                        }
-                    },
-                    None => panic!("Error reading Data"),
-                }
+            Ok(mut stream) => {
+                handles.push(thread::spawn(move || handle_connection(&mut stream)));
             }
             Err(e) => {
                 println!("error: {}", e);
             }
         }
+    }
+
+    for handle in handles {
+        let _ = handle.join();
     }
 }
