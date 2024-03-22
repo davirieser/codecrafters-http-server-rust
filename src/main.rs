@@ -54,8 +54,24 @@ fn main() {
 
                         match path {
                             "/" => {
-                                let _ = write!(_stream, "HTTP/1.1 200 Not Found\r\n\r\n");
+                                let _ = write!(_stream, "HTTP/1.1 200 OK\r\n\r\n");
                             },
+                            "/user-agent" => {
+                                match headers.iter().find(|(key, _)| *key == "User-Agent") {
+                                    Some((_, user_agent)) => {
+                                        let len = user_agent.len();
+
+                                        let _ = write!(_stream, "HTTP/1.1 200 OK\r\n\r\n");
+                                        let _ = write!(_stream, "Content-Type: text/plain\r\n");
+                                        let _ = write!(_stream, "Content-Length: {len}\r\n");
+
+                                        let _ = write!(_stream, "\r\n{user_agent}");
+                                    }
+                                    None => {
+                                        let _ = write!(_stream, "HTTP/1.1 404 Not Found\r\n\r\n");
+                                    }
+                                }
+                            }
                             _ if path.starts_with("/echo/") => {
                                 let message = path.strip_prefix("/echo/").unwrap();
                                 let len = message.len();
