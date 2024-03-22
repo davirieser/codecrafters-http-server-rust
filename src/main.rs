@@ -112,7 +112,7 @@ fn handle_connection(stream: &mut TcpStream, dir: Arc<Option<String>>) {
             };
             let method = HttpMethod::try_from(method).expect("Error parsing HTTP Method");
 
-            let headers = lines.by_ref().take_while(|line| line.is_empty());
+            let headers = lines.by_ref().take_while(|line| !line.is_empty());
             let headers : Vec<(&str, &str)> = headers.filter_map(split_header).collect();
 
             let body = lines.fold(String::new(), |a, b| a + b + "\n"); 
