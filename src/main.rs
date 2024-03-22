@@ -38,7 +38,7 @@ fn read_to_string<R: Read>(stream: &mut R) -> Option<String> {
     String::from_utf8(vec).ok()
 }
 
-fn handle_connection(stream: &mut TcpStream, dir: Arc<String>) {
+fn handle_connection(stream: &mut TcpStream, dir: Arc<Option<String>>) {
     match read_to_string(stream) {
         Some(buf) => {
             let mut lines = buf.lines();
@@ -83,6 +83,11 @@ fn handle_connection(stream: &mut TcpStream, dir: Arc<String>) {
                     let _ = write!(stream, "\r\n{message}");
                 }
                 _ if path.starts_with("/files/") => {
+                    if dir.is_none() {
+                        let _ = write!(stream, "HTTP/1.1 404 Not Found\r\n\r\n");
+                        break;
+                    }
+
                     let file_name = path.strip_prefix("/files/").unwrap();
                     let absolute_path = format!("{dir}{file_name}");
                     
@@ -121,11 +126,13 @@ fn main() {
         .iter()
         .position(|arg| arg == "--directory")
         .and_then(|idx| args.get(idx + 1).cloned())
-        .unwrap();
-
-    if !dir.ends_with("/") {
-        dir = format!("{dir}/");
-    }
+        .map(|dir| 
+            if !dir.ends_with("/") {
+                format!("{dir}/")
+            } else {
+                dir
+            }
+        );
 
     let arc = Arc::new(dir);
 
