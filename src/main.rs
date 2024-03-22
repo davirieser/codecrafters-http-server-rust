@@ -1,6 +1,10 @@
 use std::net::{TcpListener, TcpStream};
 use std::io::{Write, Read};
 use std::thread;
+use std::env;
+use std::sync::Arc;
+use std::path::PathBuf;
+use std::fs;
 
 fn split_header(header: &str) -> Option<(&str, &str)> {
     let mut iter = header.splitn(2, ':');
@@ -34,7 +38,7 @@ fn read_to_string<R: Read>(stream: &mut R) -> Option<String> {
     String::from_utf8(vec).ok()
 }
 
-fn handle_connection(stream: &mut TcpStream) {
+fn handle_connection(stream: &mut TcpStream, dir: Arc<String>) {
     match read_to_string(stream) {
         Some(buf) => {
             let mut lines = buf.lines();
@@ -78,6 +82,30 @@ fn handle_connection(stream: &mut TcpStream) {
 
                     let _ = write!(stream, "\r\n{message}");
                 }
+                _ if path.starts_with("/files/") => {
+                    let file_name = path.strip_prefix("/files/").unwrap();
+                    let absolute_path = format!("{dir}{file_name}");
+                    
+                    let file_path = PathBuf::from(absolute_path);
+
+                    if !file_path.exists() || !file_path.is_file() {
+                        let _ = write!(stream, "HTTP/1.1 404 Not Found\r\n\r\n");
+                    } else {
+                        match fs::read(file_path) {
+                            Ok(contents) => {
+                                let len = contents.len();
+
+                                let _ = write!(stream, "HTTP/1.1 200 OK\r\n");
+                                let _ = write!(stream, "Content-Type: application/octet-stream\r\n");
+                                let _ = write!(stream, "Content-Length: {len}\r\n\r\n");
+
+                                let _ = stream.write(&contents);
+                            }
+                            Err(e) => panic!("Could not open File: {e}"),
+                        }
+                        
+                    }
+                }
                 _ => {
                     let _ = write!(stream, "HTTP/1.1 404 Not Found\r\n\r\n");
                 }
@@ -88,14 +116,28 @@ fn handle_connection(stream: &mut TcpStream) {
 }
 
 fn main() {
+    let args: Vec<_> = env::args().collect();
+    let mut dir = args
+        .iter()
+        .position(|arg| arg == "--directory")
+        .and_then(|idx| args.get(idx + 1).cloned())
+        .unwrap();
+
+    if !dir.ends_with("/") {
+        dir = format!("{dir}/");
+    }
+
+    let arc = Arc::new(dir);
+
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
     
     let mut handles = vec![];
 
     for stream in listener.incoming() {
+        let dir_ref = arc.clone();
         match stream {
             Ok(mut stream) => {
-                handles.push(thread::spawn(move || handle_connection(&mut stream)));
+                handles.push(thread::spawn(move || handle_connection(&mut stream, dir_ref)));
             }
             Err(e) => {
                 println!("error: {}", e);
