@@ -269,7 +269,7 @@ async fn save_file(stream: &mut TcpStream, path: &str, dir: &str, body: String) 
 
     Response::from(res
         .as_ref()
-        .map_or_else(|_e| HttpStatusCode::InternalServerError, |_v| HttpStatusCode::Ok)
+        .map_or_else(|_e| HttpStatusCode::InternalServerError, |_v| HttpStatusCode::Created)
     ).write_to(stream).await?;
         
     res
