@@ -343,9 +343,9 @@ async fn handle_connection(mut stream: TcpStream, dir: Arc<Option<String>>) {
                     match dir.as_ref() {
                         Some(dir) => {
                             if method == HttpMethod::GET {
-                                send_file(&mut stream, path, dir);
+                                send_file(&mut stream, path, dir).await;
                             } else if method == HttpMethod::POST {
-                                save_file(&mut stream, path, dir, body);
+                                save_file(&mut stream, path, dir, body).await;
                             }
                         }
                         None => {
