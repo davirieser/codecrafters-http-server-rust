@@ -264,8 +264,9 @@ async fn save_file(stream: &mut TcpStream, path: &str, dir: &str, body: String) 
     
     let file_path = PathBuf::from(absolute_path);
 
-    let mut file = File::open(file_path).await?;
+    let mut file = File::create(file_path).await?;
     let res = file.write(body.as_bytes()).await;
+
     Response::from(res
         .as_ref()
         .map_or_else(|_e| HttpStatusCode::InternalServerError, |_v| HttpStatusCode::Ok)
