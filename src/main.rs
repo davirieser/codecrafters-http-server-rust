@@ -274,7 +274,7 @@ async fn handle_connection(mut stream: TcpStream, dir: Arc<Option<String>>) {
             let header_line = lines.next()
                 .and_then(|line| line.find(' ').and_then(|i| Some((line, i))))
                 .and_then(|(line, idx1)| match (idx1, line.rfind(' ')) {
-                    (idx1, Some(idx2)) if idx1 != idx2 => Some((&line[..idx1], &line[idx1+1..idx2], &line[idx2+1..])),
+                    (idx1, Some(idx2)) if idx1 != idx2 => Some((*&line[..idx1].trim(), *&line[idx1+1..idx2].trim(), *&line[idx2+1..].trim())),
                     (_, _) => None,
                 });
             let (method, path, version) = match header_line {
@@ -336,6 +336,8 @@ async fn handle_connection(mut stream: TcpStream, dir: Arc<Option<String>>) {
                         ],
                         message.to_string()
                     );
+                    
+                    response.write_to(&mut stream).await;
                 }
                 _ if path.starts_with("/files/") => {
                     match dir.as_ref() {
