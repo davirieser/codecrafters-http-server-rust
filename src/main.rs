@@ -386,7 +386,9 @@ async fn main_loop() -> io::Result<()> {
         println!("New Connection from {socket_addr}");
 
         let dir_ref = arc.clone();
-        handle_connection(socket, dir_ref).await;
+        tokio::spawn(async move {
+            handle_connection(socket, dir_ref).await
+        });
     }
 }
 
