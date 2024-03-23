@@ -236,19 +236,26 @@ async fn send_file(stream: &mut TcpStream, path: &str, dir: &str) -> io::Result<
     
     let file_path = PathBuf::from(absolute_path);
 
-    let mut file = File::open(file_path).await?;
-    let size = file.metadata().await?.len();
-    
-    let response = Response::new_without_body(
-        HttpStatusCode::Ok, 
-        vec![
-            ("Content-Type".to_string(), "application/octet-stream".to_string()),
-            ("Content-Length".to_string(), format!("{size}"))
-        ],
-    );
+    match File::open(file_path).await {
+        Ok(mut file) => {
+            let size = file.metadata().await?.len();
+            
+            let response = Response::new_without_body(
+                HttpStatusCode::Ok, 
+                vec![
+                    ("Content-Type".to_string(), "application/octet-stream".to_string()),
+                    ("Content-Length".to_string(), format!("{size}"))
+                ],
+            );
 
-    response.write_to(stream).await?;
-    tokio::io::copy(&mut file, stream).await
+            response.write_to(stream).await?;
+            tokio::io::copy(&mut file, stream).await
+        }
+        Err(_) => {
+            Response::from(HttpStatusCode::NotFound).write_to(stream).await
+                .map(|r| u64::try_from(r).unwrap())
+        }
+    }
 }
 
 async fn save_file(stream: &mut TcpStream, path: &str, dir: &str, body: String) -> io::Result<usize> {
